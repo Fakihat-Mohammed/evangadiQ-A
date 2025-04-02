@@ -1,7 +1,9 @@
 import express from "express";
-import { authMiddleware } from "../middleware/authMiddleware.js";
-import { registerUser, loginUser } from "../Controllers/userController.js";
+import register  from "../Controllers/userController.js";
+
 const router = express.Router();
-router.post("/register", registerUser);
-router.post("/login", authMiddleware, loginUser);
+
+// Create a new user Route
+router.post("/register", register);
+
 export default router;

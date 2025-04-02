@@ -11,4 +11,3 @@ const dbConnection = mysql.createPool({
 });
 
 export default dbConnection;
-

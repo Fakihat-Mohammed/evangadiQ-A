@@ -1,69 +1,44 @@
 import dbConnection from "../db/dbConfig.js";
-import jwt from 'jsonwebtoken'
 import bcrypt from "bcrypt";
-export const registerUser = async (req, res) => {
-  // console.log("Request Body:", req.body); // Debugging request body
+import StatusCodes from "http-status-codes";
 
-  const { username, email, password, first_name, last_name } = req.body;
-
-  if (!username || !email || !password) {
-    return res.status(400).json({
-      error: "Username, email and password are required",
-    });
+async function register(req, res) {
+  const { username, first_name, last_name, email, password_hash } = req.body;
+  if (!username || !first_name || !last_name || !email || !password_hash) {
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .json({ message: "Please provide all required fields!!" });
   }
-
   try {
-    // Check if user exists
-    const [existing] = await dbConnection.execute("SELECT * FROM users WHERE email = ?", [
-      email,
-    ]);
-
-    if (existing.length > 0) {
-      return res.status(400).json({ error: "Email already exists" });
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create user
-    const [result] = await dbConnection.execute(
-      "INSERT INTO users (username, email, password_hash, first_name, last_name) VALUES (?, ?, ?, ?, ?)",
-      [username, email, hashedPassword, first_name, last_name]
+    const [user] = await dbConnection.query(
+      "SELECT username,user_id FROM Users WHERE username = ? or email = ?",
+      [username, email]
     );
-
-    res.status(201).json({
-      message: "User registered successfully",
-      userId: result.insertId,
-    });
-  } catch (error) {
-    console.error("Registration error:", error); // Log the error
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-
-
-export const loginUser = async(req,res)=>{
-  const {email,password}=req.body;
-  if(!email || !password){
-    return res.status(400).json({error:"Email and password are required"});
-
-
-
-  }
-  try {
-    const [user]= await dbConnection.execute("SELECT * FROM users WHERE email = ?",[email]);
-    if(user.length === 0){
-      return res.status(404).json({error:"User not found Please Register first"});
+    if (user.length > 0) {
+      return res
+        .status(StatusCodes.CONFLICT)
+        .json({ message: "User already existed" });
     }
-    const users = user[0];
-    const passwordMatch = await bcrypt.compare(password,users.password_hash);
-    if(!passwordMatch){
-      return res.status(400).json({error:"Invalid password"});
+    if (password_hash.length < 9) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "password must be greater than 8 characters" });
     }
-    const token = jwt.sign({user_id:users.user_id},process.env.JWT_SECRET,{expiresIn:'1h'})
-res.json({token})
+    // encryption
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password_hash, salt);
+    await dbConnection.query(
+      "INSERT INTO users (username,first_name,last_name,email,password_hash) VALUES (?,?,?,?,?)",
+      [username, first_name, last_name, email, hashedPassword]
+    );
+    return res
+      .status(StatusCodes.CREATED)
+      .json({ message: "User successfully registered" });
   } catch (error) {
-    res.status(500).json({error:"Internal Server Error"})
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "An expected error occurred" });
   }
 }
+export default register;
